@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 export default function AdminMFAPage() {
   const router = useRouter();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 const STATUSES = ["pending", "confirmed", "in-progress", "completed", "cancelled"] as const;
 type Status = (typeof STATUSES)[number];

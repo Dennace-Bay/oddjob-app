@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 const TIME_SLOTS = [
   { value: "Morning 8am-12pm", label: "Morning (8am – 12pm)" },
