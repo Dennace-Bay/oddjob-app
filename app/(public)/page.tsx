@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createServerClient } from "@/lib/supabase/server";
 
 type Service = {
@@ -22,6 +23,16 @@ export default async function HomePage() {
     <main>
       {/* Hero */}
       <section className="bg-indigo-600 px-6 py-24 text-center text-white">
+        <div className="mx-auto mb-6 flex justify-center">
+          <Image
+            src="/logo.jpeg"
+            alt="OddJobs logo"
+            width={160}
+            height={160}
+            className="rounded-2xl object-contain"
+            priority
+          />
+        </div>
         <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl">
           Book a Student Worker Today
         </h1>
