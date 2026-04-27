@@ -75,7 +75,7 @@ export default async function BookPage({ searchParams }: Props) {
         )}
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-          <BookingForm serviceId={serviceId} />
+          <BookingForm serviceId={serviceId} serviceName={service?.name ?? null} />
         </div>
       </div>
     </main>

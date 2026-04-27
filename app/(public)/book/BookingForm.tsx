@@ -68,7 +68,13 @@ function Field({
   );
 }
 
-export default function BookingForm({ serviceId }: { serviceId: string | null }) {
+export default function BookingForm({
+  serviceId,
+  serviceName,
+}: {
+  serviceId: string | null;
+  serviceName: string | null;
+}) {
   const router = useRouter();
   const [form, setForm] = useState<FormData>({
     customer_name: "",
@@ -133,6 +139,29 @@ export default function BookingForm({ serviceId }: { serviceId: string | null })
       );
       setSubmitting(false);
       return;
+    }
+
+    // Await the fetch so navigation doesn't abort the request mid-flight.
+    // Errors are logged but never block the redirect — booking is already saved.
+    try {
+      const res = await fetch("/api/send-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: form.customer_name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          service_name: serviceName ?? "Unknown service",
+          address: form.address.trim(),
+          preferred_date: form.preferred_date,
+          preferred_time: form.preferred_time,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      console.log("[BookingForm] Email API response:", data);
+    } catch (err) {
+      console.error("[BookingForm] Email API call failed:", err);
     }
 
     router.push("/confirmation");
