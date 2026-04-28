@@ -25,10 +25,10 @@ export default function Footer() {
             </p>
             <p>
               <a
-                href="mailto:hello@oddjobs.com"
+                href="mailto:info@oddjobcrews.com"
                 className="text-gray-500 transition-colors hover:text-indigo-600"
               >
-                hello@oddjobs.com
+                info@oddjobcrews.com
               </a>
             </p>
             <p className="text-gray-400">Calgary, AB</p>
