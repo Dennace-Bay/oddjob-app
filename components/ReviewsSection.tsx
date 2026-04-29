@@ -19,17 +19,12 @@ export default function ReviewsSection() {
   useEffect(() => {
     async function fetchReviews() {
       const supabase = createClient();
-
-      console.log("Fetching reviews...");
-
-      const { data, error, count } = await supabase
+      const { data } = await supabase
         .from("reviews")
-        .select("*", { count: "exact" });
-
-      console.log("Reviews data:", data);
-      console.log("Reviews error:", error);
-      console.log("Reviews count:", count);
-      console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+        .select("id, customer_name, neighbourhood, rating, comment")
+        .eq("approved", true)
+        .order("created_at", { ascending: false })
+        .limit(6);
 
       setReviews(data ?? []);
       setLoading(false);
