@@ -36,6 +36,7 @@ export default async function HomePage() {
       .limit(6),
   ]);
 
+
   return (
     <main>
       {/* Hero */}

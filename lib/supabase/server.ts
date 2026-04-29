@@ -19,6 +19,9 @@ export function createServerClient() {
           } catch {}
         },
       },
+      global: {
+        fetch: (url, options) => fetch(url, { ...options, cache: "no-store" }),
+      },
     }
   );
 }
