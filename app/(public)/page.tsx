@@ -40,7 +40,7 @@ export default async function HomePage() {
         </h1>
         <p className="mx-auto max-w-xl text-lg text-indigo-100 sm:text-xl">
           Affordable help for everyday tasks — from junk removal to moving —
-          by local students get it done.
+          by local students who get it done.
         </p>
         <Link
           href="#services"
