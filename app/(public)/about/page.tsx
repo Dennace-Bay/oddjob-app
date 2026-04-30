@@ -27,8 +27,8 @@ export default function AboutPage() {
             </p>
             <p>
               Together with his classmate and co-founder Prince Esto, Dennis started OddJob Crews to
-              solve two problems at once — give Calgary residents affordable and reliable help with
-              everyday tasks, and give hardworking students a flexible way to earn while they study.
+              solve two problems at once — provide Calgary residents affordable and reliable help with
+              everyday tasks, and hardworking students a flexible way to earn while they study.
             </p>
           </div>
         </div>
