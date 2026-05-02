@@ -158,8 +158,7 @@ export default function BookingForm({
           notes: form.notes.trim() || null,
         }),
       });
-      const data = await res.json();
-      console.log("[BookingForm] Email API response:", data);
+      await res.json();
     } catch (err) {
       console.error("[BookingForm] Email API call failed:", err);
     }

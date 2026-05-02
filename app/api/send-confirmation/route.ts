@@ -18,6 +18,26 @@ type BookingDetails = {
   notes?: string | null;
 };
 
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LIMITS: Record<string, number> = {
+  customer_name: 100,
+  email: 254,
+  phone: 30,
+  service_name: 100,
+  address: 200,
+  preferred_date: 20,
+  preferred_time: 50,
+  notes: 1000,
+};
+
 function summaryRow(label: string, value: string): string {
   return `
     <tr>
@@ -156,55 +176,58 @@ function adminHtml(b: BookingDetails): string {
 }
 
 export async function POST(request: Request) {
-  console.log("[send-confirmation] Route called");
-  console.log("[send-confirmation] RESEND_API_KEY prefix:", process.env.RESEND_API_KEY?.slice(0, 5) ?? "NOT SET");
-  console.log("[send-confirmation] FROM address:", FROM);
-  console.log("[send-confirmation] ADMIN_EMAIL:", ADMIN_EMAIL);
-
   try {
     const body: BookingDetails = await request.json();
-    const { customer_name, email, phone, service_name, address, preferred_date, preferred_time, notes } = body;
+    const { customer_name, email, phone, service_name, address, preferred_date, preferred_time } = body;
 
-    console.log("[send-confirmation] Payload received:", { customer_name, email, phone, service_name, address, preferred_date, preferred_time, notes });
-
-    if (!customer_name || !email) {
-      console.error("[send-confirmation] Missing required fields — customer_name or email is empty");
+    // Server-side validation
+    if (!customer_name || !email || !phone || !service_name || !address || !preferred_date || !preferred_time) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+    if (!EMAIL_RE.test(email)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+    for (const [field, max] of Object.entries(LIMITS)) {
+      const val = (body as Record<string, unknown>)[field];
+      if (typeof val === "string" && val.length > max) {
+        return NextResponse.json({ error: `Field ${field} exceeds maximum length` }, { status: 400 });
+      }
+    }
 
-    // Send both emails concurrently
-    console.log("[send-confirmation] Sending customer email to:", email);
-    console.log("[send-confirmation] Sending admin notification to:", ADMIN_EMAIL);
+    // Escape all user inputs before embedding in HTML emails
+    const safe: BookingDetails = {
+      customer_name: esc(customer_name),
+      email: esc(email),
+      phone: esc(phone),
+      service_name: esc(service_name),
+      address: esc(address),
+      preferred_date: esc(preferred_date),
+      preferred_time: esc(preferred_time),
+      notes: body.notes ? esc(body.notes) : null,
+    };
 
     const [customerResult, adminResult] = await Promise.allSettled([
       resend.emails.send({
         from: FROM,
         to: email,
         subject: "Booking Received — OddJob Crew",
-        html: customerHtml(body),
+        html: customerHtml(safe),
       }),
       resend.emails.send({
         from: FROM,
         to: ADMIN_EMAIL,
-        subject: `New Booking: ${service_name} — ${customer_name}`,
-        html: adminHtml(body),
+        subject: `New Booking: ${safe.service_name} — ${safe.customer_name}`,
+        html: adminHtml(safe),
       }),
     ]);
 
-    // Log full Resend responses — SDK resolves with { data, error } rather than rejecting
-    if (customerResult.status === "fulfilled") {
-      console.log("[send-confirmation] Customer email response:", JSON.stringify(customerResult.value));
-    } else {
-      console.error("[send-confirmation] Customer email promise rejected:", customerResult.reason);
+    if (customerResult.status === "rejected") {
+      console.error("[send-confirmation] Customer email failed:", customerResult.reason);
+    }
+    if (adminResult.status === "rejected") {
+      console.error("[send-confirmation] Admin email failed:", adminResult.reason);
     }
 
-    if (adminResult.status === "fulfilled") {
-      console.log("[send-confirmation] Admin email response:", JSON.stringify(adminResult.value));
-    } else {
-      console.error("[send-confirmation] Admin email promise rejected:", adminResult.reason);
-    }
-
-    // Resend resolves with { data: null, error: {...} } on API-level failures — check both
     const customerError =
       customerResult.status === "rejected"
         ? customerResult.reason
@@ -215,8 +238,8 @@ export async function POST(request: Request) {
         ? adminResult.reason
         : adminResult.value.error;
 
-    if (customerError) console.error("[send-confirmation] Customer email error detail:", customerError);
-    if (adminError) console.error("[send-confirmation] Admin email error detail:", adminError);
+    if (customerError) console.error("[send-confirmation] Customer email error:", customerError);
+    if (adminError) console.error("[send-confirmation] Admin email error:", adminError);
 
     if (customerError && adminError) {
       return NextResponse.json(
@@ -230,7 +253,6 @@ export async function POST(request: Request) {
       adminError ? "admin email failed" : null,
     ].filter(Boolean);
 
-    console.log("[send-confirmation] Done. Warnings:", warnings.length ? warnings : "none");
     return NextResponse.json({ ok: true, warnings: warnings.length ? warnings : undefined });
   } catch (err) {
     console.error("[send-confirmation] Unexpected error:", err);
