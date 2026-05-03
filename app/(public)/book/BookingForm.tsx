@@ -12,6 +12,14 @@ const TIME_SLOTS = [
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+type Service = {
+  id: string;
+  name: string;
+  icon: string;
+  base_price: number;
+  duration_estimate: string;
+};
+
 type FormData = {
   customer_name: string;
   email: string;
@@ -22,10 +30,11 @@ type FormData = {
   notes: string;
 };
 
-type Errors = Partial<Record<keyof FormData, string>>;
+type Errors = Partial<Record<keyof FormData | "service", string>>;
 
-function validate(form: FormData): Errors {
+function validate(form: FormData, serviceId: string | null): Errors {
   const errs: Errors = {};
+  if (!serviceId) errs.service = "Please select a service.";
   if (!form.customer_name.trim()) errs.customer_name = "Full name is required.";
   if (!form.email.trim()) {
     errs.email = "Email is required.";
@@ -69,13 +78,16 @@ function Field({
 }
 
 export default function BookingForm({
-  serviceId,
-  serviceName,
+  services,
+  preSelectedId,
+  preSelectedName,
 }: {
-  serviceId: string | null;
-  serviceName: string | null;
+  services: Service[];
+  preSelectedId: string | null;
+  preSelectedName: string | null;
 }) {
   const router = useRouter();
+  const [selectedId, setSelectedId] = useState<string | null>(preSelectedId);
   const [form, setForm] = useState<FormData>({
     customer_name: "",
     email: "",
@@ -89,14 +101,14 @@ export default function BookingForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const selectedService = services.find((s) => s.id === selectedId) ?? null;
+
   function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof FormData]) {
+    if (errors[name as keyof Errors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   }
@@ -104,16 +116,9 @@ export default function BookingForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    const errs = validate(form);
+    const errs = validate(form, selectedId);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
-      return;
-    }
-
-    if (!serviceId) {
-      setSubmitError(
-        "No service selected. Please go back and choose a service."
-      );
       return;
     }
 
@@ -122,7 +127,7 @@ export default function BookingForm({
 
     const supabase = createClient();
     const { error } = await supabase.from("bookings").insert({
-      service_id: serviceId,
+      service_id: selectedId,
       customer_name: form.customer_name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
@@ -141,26 +146,23 @@ export default function BookingForm({
       return;
     }
 
-    // Await the fetch so navigation doesn't abort the request mid-flight.
-    // Errors are logged but never block the redirect — booking is already saved.
     try {
-      const res = await fetch("/api/send-confirmation", {
+      await fetch("/api/send-confirmation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_name: form.customer_name.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
-          service_name: serviceName ?? "Unknown service",
+          service_name: selectedService?.name ?? "Unknown service",
           address: form.address.trim(),
           preferred_date: form.preferred_date,
           preferred_time: form.preferred_time,
           notes: form.notes.trim() || null,
         }),
       });
-      await res.json();
-    } catch (err) {
-      console.error("[BookingForm] Email API call failed:", err);
+    } catch {
+      // email failure doesn't block the booking
     }
 
     router.push("/confirmation");
@@ -168,6 +170,44 @@ export default function BookingForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+
+      {/* Service selector */}
+      <Field label="Select a Service" error={errors.service}>
+        {selectedService ? (
+          <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{selectedService.icon}</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{selectedService.name}</p>
+                <p className="text-xs text-gray-500">
+                  From ${Number(selectedService.base_price).toFixed(2)} · {selectedService.duration_estimate}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setSelectedId(null); setErrors((p) => ({ ...p, service: undefined })); }}
+              className="text-xs text-indigo-500 hover:underline"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <select
+            value={selectedId ?? ""}
+            onChange={(e) => { setSelectedId(e.target.value || null); setErrors((p) => ({ ...p, service: undefined })); }}
+            className={inputClass(!!errors.service)}
+          >
+            <option value="">— Choose a service —</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.icon} {s.name} — From ${Number(s.base_price).toFixed(2)}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+
       <Field label="Full Name" error={errors.customer_name}>
         <input
           type="text"
@@ -267,25 +307,9 @@ export default function BookingForm({
       >
         {submitting ? (
           <span className="flex items-center justify-center gap-2">
-            <svg
-              className="h-4 w-4 animate-spin"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              />
+            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
             Submitting…
           </span>
