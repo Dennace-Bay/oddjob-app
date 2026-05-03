@@ -11,6 +11,7 @@ type Service = {
   name: string;
   icon: string;
   base_price: number;
+  pricing_type: "flat" | "hourly";
   duration_estimate: string;
 };
 
@@ -20,7 +21,7 @@ export default async function BookPage({ searchParams }: Props) {
   const supabase = createServerClient();
   const { data: services } = await supabase
     .from("services")
-    .select("id, name, icon, base_price, duration_estimate")
+    .select("id, name, icon, base_price, pricing_type, duration_estimate")
     .eq("active", true)
     .order("name");
 

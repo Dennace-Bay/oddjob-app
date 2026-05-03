@@ -17,6 +17,7 @@ type Service = {
   name: string;
   icon: string;
   base_price: number;
+  pricing_type: "flat" | "hourly";
   duration_estimate: string;
 };
 
@@ -251,7 +252,10 @@ export default function BookingForm({
               <div>
                 <p className="text-sm font-semibold text-gray-900">{selectedService.name}</p>
                 <p className="text-xs text-gray-500">
-                  From ${Number(selectedService.base_price).toFixed(2)} · {selectedService.duration_estimate}
+                  {selectedService.pricing_type === "hourly"
+                    ? `$${Number(selectedService.base_price).toFixed(2)}/hr`
+                    : `From $${Number(selectedService.base_price).toFixed(2)}`}{" "}
+                  · {selectedService.duration_estimate}
                 </p>
               </div>
             </div>
@@ -272,7 +276,10 @@ export default function BookingForm({
             <option value="">— Choose a service —</option>
             {services.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.icon} {s.name} — From ${Number(s.base_price).toFixed(2)}
+                {s.icon} {s.name} —{" "}
+                {s.pricing_type === "hourly"
+                  ? `$${Number(s.base_price).toFixed(2)}/hr`
+                  : `From $${Number(s.base_price).toFixed(2)}`}
               </option>
             ))}
           </select>

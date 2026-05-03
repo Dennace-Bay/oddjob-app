@@ -47,6 +47,7 @@ type Service = {
   description: string;
   icon: string;
   base_price: number;
+  pricing_type: "flat" | "hourly";
   duration_estimate: string;
   active: boolean;
 };
@@ -58,6 +59,7 @@ const BLANK_DRAFT: ServiceDraft = {
   description: "",
   icon: "",
   base_price: 0,
+  pricing_type: "flat",
   duration_estimate: "",
   active: true,
 };
@@ -407,9 +409,25 @@ function ServiceForm({
           <input className={inputCls} value={draft.icon} onChange={(e) => onChange("icon", e.target.value)} placeholder="e.g. 🗑️" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-gray-600">Starting Price ($)</label>
-          <input className={inputCls} type="number" min="0" step="0.01" value={draft.base_price}
-            onChange={(e) => onChange("base_price", parseFloat(e.target.value) || 0)} />
+          <label className="mb-1 block text-xs font-semibold text-gray-600">
+            {draft.pricing_type === "hourly" ? "Hourly Rate ($)" : "Starting Price ($)"}
+          </label>
+          <div className="flex gap-2">
+            <input className={inputCls} type="number" min="0" step="0.01" value={draft.base_price}
+              onChange={(e) => onChange("base_price", parseFloat(e.target.value) || 0)} />
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-200 text-xs font-semibold">
+              <button type="button"
+                onClick={() => onChange("pricing_type", "flat")}
+                className={`px-3 py-2 transition-colors ${draft.pricing_type === "flat" ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                Flat
+              </button>
+              <button type="button"
+                onClick={() => onChange("pricing_type", "hourly")}
+                className={`px-3 py-2 transition-colors ${draft.pricing_type === "hourly" ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                /hr
+              </button>
+            </div>
+          </div>
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-gray-600">Duration Estimate</label>
@@ -475,7 +493,7 @@ function ServicesDashboard() {
 
   function startEdit(service: Service) {
     setEditingId(service.id);
-    setEditDraft({ name: service.name, description: service.description, icon: service.icon, base_price: service.base_price, duration_estimate: service.duration_estimate, active: service.active });
+    setEditDraft({ name: service.name, description: service.description, icon: service.icon, base_price: service.base_price, pricing_type: service.pricing_type, duration_estimate: service.duration_estimate, active: service.active });
     setSaveError(null);
     setAddingNew(false);
   }
@@ -508,6 +526,7 @@ function ServicesDashboard() {
       description: editDraft.description.trim(),
       icon: editDraft.icon.trim(),
       base_price: editDraft.base_price,
+      pricing_type: editDraft.pricing_type,
       duration_estimate: editDraft.duration_estimate.trim(),
       active: editDraft.active,
     }).eq("id", editingId);
@@ -530,6 +549,7 @@ function ServicesDashboard() {
       description: newDraft.description.trim(),
       icon: newDraft.icon.trim(),
       base_price: newDraft.base_price,
+      pricing_type: newDraft.pricing_type,
       duration_estimate: newDraft.duration_estimate.trim(),
       active: newDraft.active,
     });
@@ -616,7 +636,13 @@ function ServicesDashboard() {
                   </div>
                   <p className="mt-0.5 text-sm text-gray-500">{service.description}</p>
                   <div className="mt-1.5 flex gap-4 text-xs text-gray-400">
-                    <span>From <strong className="text-indigo-600">${Number(service.base_price).toFixed(2)}</strong></span>
+                    <span>
+                      <strong className="text-indigo-600">
+                        {service.pricing_type === "hourly"
+                          ? `$${Number(service.base_price).toFixed(2)}/hr`
+                          : `From $${Number(service.base_price).toFixed(2)}`}
+                      </strong>
+                    </span>
                     <span>{service.duration_estimate}</span>
                   </div>
                 </div>

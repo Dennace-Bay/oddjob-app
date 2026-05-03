@@ -9,6 +9,7 @@ type Service = {
   description: string;
   icon: string;
   base_price: number;
+  pricing_type: "flat" | "hourly";
   duration_estimate: string;
 };
 
@@ -17,7 +18,7 @@ export default async function HomePage() {
 
   const { data: services, error } = await supabase
     .from("services")
-    .select("id, name, description, icon, base_price, duration_estimate")
+    .select("id, name, description, icon, base_price, pricing_type, duration_estimate")
     .eq("active", true)
     .order("name");
 
@@ -170,7 +171,9 @@ export default async function HomePage() {
 
                   <div className="mb-4 flex items-center justify-between border-t border-gray-100 pt-4">
                     <span className="text-lg font-extrabold text-indigo-600">
-                      From ${Number(service.base_price).toFixed(2)}
+                      {service.pricing_type === "hourly"
+                        ? `$${Number(service.base_price).toFixed(2)}/hr`
+                        : `From $${Number(service.base_price).toFixed(2)}`}
                     </span>
                     <span className="text-xs text-gray-400">{service.duration_estimate}</span>
                   </div>
