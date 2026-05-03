@@ -25,7 +25,9 @@ type Booking = {
   address: string;
   preferred_date: string;
   preferred_time: string;
+  notes: string | null;
   status: string;
+  photos: string[] | null;
   services: { name: string } | null;
 };
 
@@ -62,8 +64,72 @@ const BLANK_DRAFT: ServiceDraft = {
 
 const BOOKING_COLUMNS = [
   "Date Submitted", "Customer Name", "Phone", "Email",
-  "Service", "Address", "Preferred Date", "Preferred Time", "Status",
+  "Service", "Address", "Preferred Date", "Preferred Time", "Photos", "Status",
 ];
+
+// ─── Photo Modal ──────────────────────────────────────────────────────────────
+
+function PhotoModal({ paths, onClose }: { paths: string[]; onClose: () => void }) {
+  const [urls, setUrls] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data } = await supabase.storage
+        .from("booking-photos")
+        .createSignedUrls(paths, 3600);
+      setUrls(data?.map((d) => d.signedUrl).filter((u): u is string => u !== null) ?? []);
+      setLoading(false);
+    }
+    load();
+  }, [paths]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">
+            Booking Photos ({paths.length})
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600" />
+          </div>
+        ) : urls.length === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-400">Could not load photos.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {urls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Photo ${i + 1}`}
+                  className="aspect-square w-full rounded-xl object-cover transition hover:opacity-80"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Bookings Dashboard ────────────────────────────────────────────────────────
 
@@ -71,6 +137,7 @@ function BookingsDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [viewingPhotos, setViewingPhotos] = useState<string[] | null>(null);
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
@@ -169,6 +236,18 @@ function BookingsDashboard() {
                 <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booking.preferred_date}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booking.preferred_time}</td>
                 <td className="whitespace-nowrap px-4 py-3">
+                  {booking.photos && booking.photos.length > 0 ? (
+                    <button
+                      onClick={() => setViewingPhotos(booking.photos!)}
+                      className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-indigo-100 hover:text-indigo-700"
+                    >
+                      📷 {booking.photos.length}
+                    </button>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
                   <select
                     value={booking.status}
                     onChange={(e) => updateStatus(booking.id, e.target.value)}
@@ -188,6 +267,9 @@ function BookingsDashboard() {
           </tbody>
         </table>
       </div>
+      {viewingPhotos && (
+        <PhotoModal paths={viewingPhotos} onClose={() => setViewingPhotos(null)} />
+      )}
     </>
   );
 }

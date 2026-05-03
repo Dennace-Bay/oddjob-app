@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -64,7 +64,7 @@ function Field({
   error,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   error?: string;
   children: React.ReactNode;
 }) {
@@ -75,6 +75,30 @@ function Field({
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
+}
+
+async function compressImage(file: File, maxWidth = 1200, quality = 0.82): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("No canvas context")); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Image load failed")); };
+    img.src = objectUrl;
+  });
 }
 
 export default function BookingForm({
@@ -100,6 +124,12 @@ export default function BookingForm({
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => { previewUrlsRef.current = previewUrls; }, [previewUrls]);
+  useEffect(() => { return () => { previewUrlsRef.current.forEach(URL.revokeObjectURL); }; }, []);
 
   const selectedService = services.find((s) => s.id === selectedId) ?? null;
 
@@ -111,6 +141,23 @@ export default function BookingForm({
     if (errors[name as keyof Errors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const incoming = Array.from(e.target.files ?? []).slice(0, 3 - selectedFiles.length);
+    if (incoming.length === 0) return;
+    const newUrls = incoming.map(URL.createObjectURL);
+    setSelectedFiles((prev) => [...prev, ...incoming].slice(0, 3));
+    setPreviewUrls((prev) => [...prev, ...newUrls].slice(0, 3));
+    e.target.value = "";
+  }
+
+  function removeFile(index: number) {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviewUrls((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -126,24 +173,48 @@ export default function BookingForm({
     setSubmitError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.from("bookings").insert({
-      service_id: selectedId,
-      customer_name: form.customer_name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      address: form.address.trim(),
-      preferred_date: form.preferred_date,
-      preferred_time: form.preferred_time,
-      notes: form.notes.trim() || null,
-      status: "pending",
-    });
+    const { data: inserted, error } = await supabase
+      .from("bookings")
+      .insert({
+        service_id: selectedId,
+        customer_name: form.customer_name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        address: form.address.trim(),
+        preferred_date: form.preferred_date,
+        preferred_time: form.preferred_time,
+        notes: form.notes.trim() || null,
+        status: "pending",
+      })
+      .select("id")
+      .single();
 
-    if (error) {
+    if (error || !inserted) {
       setSubmitError(
         "Something went wrong submitting your booking. Please try again or call us at (403) 992-2526."
       );
       setSubmitting(false);
       return;
+    }
+
+    // Upload photos — failure does not block the booking
+    if (selectedFiles.length > 0) {
+      const photoPaths: string[] = [];
+      for (let i = 0; i < selectedFiles.length; i++) {
+        try {
+          const blob = await compressImage(selectedFiles[i]);
+          const path = `${inserted.id}/${i + 1}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from("booking-photos")
+            .upload(path, blob, { contentType: "image/jpeg" });
+          if (!uploadError) photoPaths.push(path);
+        } catch {
+          // skip failed photo — booking still goes through
+        }
+      }
+      if (photoPaths.length > 0) {
+        await supabase.from("bookings").update({ photos: photoPaths }).eq("id", inserted.id);
+      }
     }
 
     try {
@@ -293,6 +364,70 @@ export default function BookingForm({
           className={inputClass(false) + " resize-none"}
         />
       </Field>
+
+      {/* Photo upload */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-700">
+          Photos{" "}
+          <span className="font-normal text-gray-400">(Optional — helps us prepare)</span>
+        </label>
+
+        <label
+          htmlFor="photo-upload"
+          className={[
+            "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition",
+            selectedFiles.length >= 3
+              ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+              : "border-gray-200 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50",
+          ].join(" ")}
+        >
+          <svg className="h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span className="text-sm text-gray-500">
+            {selectedFiles.length === 0
+              ? "Add photos of the work area (max 3)"
+              : selectedFiles.length >= 3
+              ? "3 photos selected"
+              : `${selectedFiles.length} photo${selectedFiles.length !== 1 ? "s" : ""} added — tap to add more`}
+          </span>
+          <span className="text-xs text-gray-400">JPG · PNG · WebP</span>
+        </label>
+
+        <input
+          id="photo-upload"
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          multiple
+          disabled={selectedFiles.length >= 3}
+          className="sr-only"
+          onChange={handleFileChange}
+        />
+
+        {previewUrls.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {previewUrls.map((url, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Photo ${i + 1}`}
+                  className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeFile(i)}
+                  aria-label="Remove photo"
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {submitError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
