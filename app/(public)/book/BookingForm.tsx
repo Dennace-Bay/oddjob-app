@@ -191,9 +191,7 @@ export default function BookingForm({
       });
 
     if (error) {
-      setSubmitError(
-        "Something went wrong submitting your booking. Please try again or call us at (403) 992-2526."
-      );
+      setSubmitError(`Debug: ${error.message} | code: ${error.code} | hint: ${error.hint}`);
       setSubmitting(false);
       return;
     }
