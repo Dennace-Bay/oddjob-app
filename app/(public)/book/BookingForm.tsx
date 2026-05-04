@@ -173,10 +173,12 @@ export default function BookingForm({
     setSubmitting(true);
     setSubmitError(null);
 
+    const bookingId = crypto.randomUUID();
     const supabase = createClient();
-    const { data: inserted, error } = await supabase
+    const { error } = await supabase
       .from("bookings")
       .insert({
+        id: bookingId,
         service_id: selectedId,
         customer_name: form.customer_name.trim(),
         email: form.email.trim(),
@@ -186,11 +188,9 @@ export default function BookingForm({
         preferred_time: form.preferred_time,
         notes: form.notes.trim() || null,
         status: "pending",
-      })
-      .select("id")
-      .single();
+      });
 
-    if (error || !inserted) {
+    if (error) {
       setSubmitError(
         "Something went wrong submitting your booking. Please try again or call us at (403) 992-2526."
       );
@@ -204,7 +204,7 @@ export default function BookingForm({
       for (let i = 0; i < selectedFiles.length; i++) {
         try {
           const blob = await compressImage(selectedFiles[i]);
-          const path = `${inserted.id}/${i + 1}.jpg`;
+          const path = `${bookingId}/${i + 1}.jpg`;
           const { error: uploadError } = await supabase.storage
             .from("booking-photos")
             .upload(path, blob, { contentType: "image/jpeg" });
@@ -214,7 +214,7 @@ export default function BookingForm({
         }
       }
       if (photoPaths.length > 0) {
-        await supabase.from("bookings").update({ photos: photoPaths }).eq("id", inserted.id);
+        await supabase.from("bookings").update({ photos: photoPaths }).eq("id", bookingId);
       }
     }
 
