@@ -139,7 +139,7 @@ function adminHtml(b: BookingDetails): string {
           <td style="background:#111827;border-radius:16px 16px 0 0;padding:28px 40px;">
             <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;">New Booking — OddJob Crew</p>
             <p style="margin:4px 0 0;font-size:13px;color:#9ca3af;">
-              Received ${new Date().toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}
+              Received ${new Date().toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Edmonton" })}
             </p>
           </td>
         </tr>
