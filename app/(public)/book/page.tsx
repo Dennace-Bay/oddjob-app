@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import BookingForm from "./BookingForm";
 
 type Props = {
-  searchParams: { service?: string };
+  searchParams: { service?: string; price?: string; equipment?: string };
 };
 
 type Service = {
@@ -16,7 +16,9 @@ type Service = {
 };
 
 export default async function BookPage({ searchParams }: Props) {
-  const serviceId = searchParams.service ?? null;
+  const serviceId       = searchParams.service ?? null;
+  const estimatedPrice  = searchParams.price ? Number(searchParams.price) : null;
+  const equipmentChoice = searchParams.equipment ?? null;
 
   const supabase = createServerClient();
   const { data: services } = await supabase
@@ -40,6 +42,8 @@ export default async function BookPage({ searchParams }: Props) {
             services={allServices}
             preSelectedId={preSelected?.id ?? null}
             preSelectedName={preSelected?.name ?? null}
+            preEstimatedPrice={estimatedPrice}
+            preEquipment={equipmentChoice}
           />
         </div>
       </div>

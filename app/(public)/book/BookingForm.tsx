@@ -106,13 +106,18 @@ export default function BookingForm({
   services,
   preSelectedId,
   preSelectedName,
+  preEstimatedPrice,
+  preEquipment,
 }: {
   services: Service[];
   preSelectedId: string | null;
   preSelectedName: string | null;
+  preEstimatedPrice?: number | null;
+  preEquipment?: string | null;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(preSelectedId);
+  const [estimateAcknowledged, setEstimateAcknowledged] = useState(false);
   const [form, setForm] = useState<FormData>({
     customer_name: "",
     email: "",
@@ -169,6 +174,10 @@ export default function BookingForm({
       setErrors(errs);
       return;
     }
+    if (preEstimatedPrice && !estimateAcknowledged) {
+      setSubmitError("Please acknowledge that the estimate is non-binding before continuing.");
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -188,6 +197,8 @@ export default function BookingForm({
         preferred_time: form.preferred_time,
         notes: form.notes.trim() || null,
         status: "pending",
+        ...(preEstimatedPrice ? { estimated_price: preEstimatedPrice } : {}),
+        ...(preEquipment ? { equipment_provided: preEquipment } : {}),
       });
 
     if (error) {
@@ -242,6 +253,24 @@ export default function BookingForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+
+      {/* Estimate banner */}
+      {preEstimatedPrice && (
+        <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">Your Estimate</p>
+            <p className="text-2xl font-extrabold text-indigo-700">${preEstimatedPrice}</p>
+            {preEquipment && (
+              <p className="text-xs text-indigo-400 capitalize">
+                Equipment: {preEquipment === "crew" ? "Crew brings supplies" : "Customer provides"}
+              </p>
+            )}
+          </div>
+          <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-600">
+            Non-binding
+          </span>
+        </div>
+      )}
 
       {/* Service selector */}
       <Field label="Select a Service" error={errors.service}>
@@ -436,6 +465,21 @@ export default function BookingForm({
           </div>
         )}
       </div>
+
+      {/* Estimate acknowledgement */}
+      {preEstimatedPrice && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={estimateAcknowledged}
+            onChange={(e) => { setEstimateAcknowledged(e.target.checked); setSubmitError(null); }}
+            className="mt-0.5 accent-indigo-600"
+          />
+          <span className="text-sm text-gray-600">
+            I understand this is an estimate and the final price will be confirmed before work begins.
+          </span>
+        </label>
+      )}
 
       {submitError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
