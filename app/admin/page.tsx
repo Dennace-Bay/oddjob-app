@@ -66,7 +66,7 @@ const BLANK_DRAFT: ServiceDraft = {
 
 const BOOKING_COLUMNS = [
   "Date Submitted", "Customer Name", "Phone", "Email",
-  "Service", "Address", "Preferred Date", "Preferred Time", "Photos", "Status",
+  "Service", "Community", "Preferred Date", "Preferred Time", "Photos", "Status",
 ];
 
 // ─── Photo Modal ──────────────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ function BookingsDashboard() {
                 <td className="whitespace-nowrap px-4 py-3 text-gray-700">
                   {booking.services?.name ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="max-w-[200px] truncate px-4 py-3 text-gray-500" title={booking.address}>{booking.address}</td>
+                <td className="max-w-[160px] truncate px-4 py-3 text-gray-500" title={booking.address}>{booking.address}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booking.preferred_date}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-500">{booking.preferred_time}</td>
                 <td className="whitespace-nowrap px-4 py-3">

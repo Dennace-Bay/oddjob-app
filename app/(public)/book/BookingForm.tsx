@@ -43,7 +43,7 @@ function validate(form: FormData, serviceId: string | null): Errors {
     errs.email = "Enter a valid email address.";
   }
   if (!form.phone.trim()) errs.phone = "Phone number is required.";
-  if (!form.address.trim()) errs.address = "Service address is required.";
+  if (!form.address.trim()) errs.address = "Please enter your community.";
   if (!form.preferred_date) errs.preferred_date = "Preferred date is required.";
   if (!form.preferred_time) errs.preferred_time = "Please select a time slot.";
   return errs;
@@ -321,15 +321,16 @@ export default function BookingForm({
         </Field>
       </div>
 
-      <Field label="Service Address" error={errors.address}>
+      <Field label="Community / Neighbourhood" error={errors.address}>
         <input
           type="text"
           name="address"
           value={form.address}
           onChange={handleChange}
-          placeholder="123 Main St, City, Province"
+          placeholder="e.g. Beltline, Kensington, Mahogany"
           className={inputClass(!!errors.address)}
         />
+        <p className="text-xs text-gray-400">We&apos;ll call you to confirm the exact address before your appointment.</p>
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

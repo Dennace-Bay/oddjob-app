@@ -83,7 +83,7 @@ function customerHtml(b: BookingDetails): string {
                            letter-spacing:0.08em;color:#6b7280;">Your Booking</p>
                 <table width="100%" cellpadding="0" cellspacing="0">
                   ${summaryRow("Service", b.service_name)}
-                  ${summaryRow("Address", b.address)}
+                  ${summaryRow("Community", b.address)}
                   ${summaryRow("Date", b.preferred_date)}
                   ${summaryRow("Time", b.preferred_time)}
                   ${b.notes ? summaryRow("Notes", b.notes) : ""}
@@ -152,7 +152,7 @@ function adminHtml(b: BookingDetails): string {
               ${summaryRow("Email", b.email)}
               ${summaryRow("Phone", b.phone)}
               ${summaryRow("Service", b.service_name)}
-              ${summaryRow("Address", b.address)}
+              ${summaryRow("Community", b.address)}
               ${summaryRow("Date", b.preferred_date)}
               ${summaryRow("Time", b.preferred_time)}
               ${b.notes ? summaryRow("Notes", b.notes) : ""}
