@@ -192,6 +192,17 @@ export default async function HomePage() {
               No services available right now. Check back soon.
             </p>
           )}
+
+          {/* Estimate CTA */}
+          <div className="mt-10 text-center">
+            <p className="mb-4 text-sm text-gray-500">Not sure what it will cost? Get an instant estimate first.</p>
+            <Link
+              href="/estimate"
+              className="inline-block rounded-full border-2 border-indigo-600 px-8 py-3 text-sm font-bold text-indigo-600 transition-colors hover:bg-indigo-600 hover:text-white"
+            >
+              Get a Free Estimate
+            </Link>
+          </div>
         </div>
       </section>
 
