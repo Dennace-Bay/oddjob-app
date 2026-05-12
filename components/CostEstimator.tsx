@@ -62,7 +62,7 @@ const CONFIGS: Record<string, ServiceConfig> = {
       { id: "gloves",  label: "Work gloves",          price: 3 },
     ],
   },
-  "Fence Painting": {
+  "Painting": {
     sizes: [
       { label: "Up to 5 panels", hours: 2 },
       { label: "6–10 panels",    hours: 4 },
