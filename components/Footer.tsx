@@ -58,7 +58,9 @@ export default function Footer() {
             </p>
             <div className="flex gap-3">
               <a
-                href="#"
+                href="https://www.facebook.com/profile.php?id=61586826433032"
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Facebook"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-slate-300 transition-colors hover:bg-indigo-600 hover:text-white"
               >
@@ -67,7 +69,9 @@ export default function Footer() {
                 </svg>
               </a>
               <a
-                href="#"
+                href="https://www.instagram.com/oddjob.crews"
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Instagram"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-slate-300 transition-colors hover:bg-pink-600 hover:text-white"
               >
