@@ -15,6 +15,7 @@ type BookingRevenue = {
   preferred_date: string;
   estimated_price: number | null;
   status: string;
+  paid: boolean;
   services: { name: string } | null;
 };
 
@@ -80,22 +81,25 @@ function getDateBounds(range: DateRange): { from: string | null; to: string | nu
 // ─── Summary Cards ─────────────────────────────────────────────────────────────
 
 function SummaryCards({
-  revenue,
+  collected,
+  pending,
   expenses,
   workerPay,
 }: {
-  revenue: number;
+  collected: number;
+  pending: number;
   expenses: number;
   workerPay: number;
 }) {
-  const net = revenue - expenses - workerPay;
+  const net = collected - expenses - workerPay;
   const cards = [
-    { label: "Revenue", value: revenue, color: "text-green-600", bg: "bg-green-50", border: "border-green-100" },
-    { label: "Expenses", value: expenses, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
-    { label: "Worker Pay", value: workerPay, color: "text-orange-500", bg: "bg-orange-50", border: "border-orange-100" },
+    { label: "Collected", value: collected, sub: pending > 0 ? `${fmt(pending)} pending` : null, color: "text-green-600", bg: "bg-green-50", border: "border-green-100" },
+    { label: "Expenses", value: expenses, sub: null, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
+    { label: "Worker Pay", value: workerPay, sub: null, color: "text-orange-500", bg: "bg-orange-50", border: "border-orange-100" },
     {
       label: "Net Profit",
       value: net,
+      sub: null,
       color: net >= 0 ? "text-indigo-600" : "text-red-600",
       bg: net >= 0 ? "bg-indigo-50" : "bg-red-50",
       border: net >= 0 ? "border-indigo-100" : "border-red-100",
@@ -103,10 +107,11 @@ function SummaryCards({
   ];
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {cards.map(({ label, value, color, bg, border }) => (
+      {cards.map(({ label, value, sub, color, bg, border }) => (
         <div key={label} className={`rounded-2xl border ${border} ${bg} p-5 shadow-sm`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
           <p className={`mt-1 text-2xl font-bold ${color}`}>{fmt(value)}</p>
+          {sub && <p className="mt-1 text-xs text-gray-400">{sub}</p>}
         </div>
       ))}
     </div>
@@ -115,7 +120,19 @@ function SummaryCards({
 
 // ─── Revenue Section ───────────────────────────────────────────────────────────
 
-function RevenueSection({ bookings }: { bookings: BookingRevenue[] }) {
+function RevenueSection({
+  bookings,
+  onRefresh,
+}: {
+  bookings: BookingRevenue[];
+  onRefresh: () => void;
+}) {
+  async function togglePaid(id: string, paid: boolean) {
+    const supabase = createClient();
+    await supabase.from("bookings").update({ paid }).eq("id", id);
+    onRefresh();
+  }
+
   if (bookings.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 py-20 text-center">
@@ -124,18 +141,19 @@ function RevenueSection({ bookings }: { bookings: BookingRevenue[] }) {
     );
   }
 
-  const total = bookings.reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  const collected = bookings.filter((b) => b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  const pending = bookings.filter((b) => !b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
 
   return (
     <div>
       <p className="mb-3 text-sm text-gray-400">
-        {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {fmt(total)} total
+        {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {fmt(collected)} collected · {fmt(pending)} pending
       </p>
       <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-100 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {["Date", "Customer", "Service", "Amount", "Status"].map((col) => (
+              {["Date", "Customer", "Service", "Amount", "Job Status", "Payment"].map((col) => (
                 <th
                   key={col}
                   className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400"
@@ -162,6 +180,18 @@ function RevenueSection({ bookings }: { bookings: BookingRevenue[] }) {
                   >
                     {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                   </span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <button
+                    onClick={() => togglePaid(b.id, !b.paid)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                      b.paid
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-orange-100 text-orange-600 hover:bg-orange-200"
+                    }`}
+                  >
+                    {b.paid ? "Paid" : "Unpaid"}
+                  </button>
                 </td>
               </tr>
             ))}
@@ -577,7 +607,7 @@ export default function AccountingPage() {
 
     let bookingsQuery = supabase
       .from("bookings")
-      .select("id, customer_name, preferred_date, estimated_price, status, services(name)")
+      .select("id, customer_name, preferred_date, estimated_price, status, paid, services(name)")
       .neq("status", "cancelled")
       .not("estimated_price", "is", null)
       .order("preferred_date", { ascending: false });
@@ -614,7 +644,8 @@ export default function AccountingPage() {
     router.push("/admin/login");
   }
 
-  const revenue = bookings.reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  const collected = bookings.filter((b) => b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  const pending = bookings.filter((b) => !b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
   const expensesTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
   const workerPayTotal = payments.reduce((sum, p) => sum + p.hours_worked * p.hourly_rate, 0);
 
@@ -661,7 +692,7 @@ export default function AccountingPage() {
               ))}
             </div>
           ) : (
-            <SummaryCards revenue={revenue} expenses={expensesTotal} workerPay={workerPayTotal} />
+            <SummaryCards collected={collected} pending={pending} expenses={expensesTotal} workerPay={workerPayTotal} />
           )}
         </div>
 
@@ -684,7 +715,7 @@ export default function AccountingPage() {
           <div className="h-48 animate-pulse rounded-2xl bg-gray-100" />
         ) : (
           <>
-            {activeTab === "revenue" && <RevenueSection bookings={bookings} />}
+            {activeTab === "revenue" && <RevenueSection bookings={bookings} onRefresh={fetchAll} />}
             {activeTab === "expenses" && <ExpensesSection expenses={expenses} onRefresh={fetchAll} />}
             {activeTab === "worker_pay" && <WorkerPaySection payments={payments} onRefresh={fetchAll} />}
           </>
