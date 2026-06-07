@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -694,10 +695,18 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-          <button onClick={handleSignOut}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50">
-            Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/accounting"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50"
+            >
+              Accounting
+            </Link>
+            <button onClick={handleSignOut}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50">
+              Sign out
+            </button>
+          </div>
         </div>
 
         {activeTab === "bookings" && <BookingsDashboard />}
