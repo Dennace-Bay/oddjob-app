@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { createServerClient } from "@/lib/supabase/server";
 import ReviewsSection from "@/components/ReviewsSection";
+
+export const metadata: Metadata = {
+  title: "OddJob Crews Calgary | Junk Removal, Yard Work & More",
+  description:
+    "Calgary's affordable student worker service. Junk removal, yard work, painting, moving help & more. Same-week booking. Call (403) 992-2526.",
+};
 
 type Service = {
   id: string;
@@ -37,11 +44,11 @@ export default async function HomePage() {
           />
         </div>
         <h1 className="mb-4 text-5xl font-extrabold tracking-tight sm:text-6xl">
-          Book a Student Worker Today
+          Junk Removal & More in Calgary
         </h1>
         <p className="mx-auto max-w-xl text-lg text-indigo-100 sm:text-xl">
-          Affordable help for everyday tasks — from junk removal to moving —
-          by local students who get it done.
+          Affordable student workers for junk removal, yard work, moving, and more —
+          serving all of Calgary with same-week availability.
         </p>
         <Link
           href="#services"
@@ -52,7 +59,7 @@ export default async function HomePage() {
 
         {/* Trust badges */}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          {["Calgary Based ✓", "Same Week Booking ✓", "Student Workers ✓"].map((badge) => (
+          {["Calgary Based ✓", "Same Week Booking ✓", "Affordable Rates ✓", "Junk Removal Experts ✓"].map((badge) => (
             <span
               key={badge}
               className="rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium text-white"
