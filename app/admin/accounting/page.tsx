@@ -14,6 +14,7 @@ type BookingRevenue = {
   customer_name: string;
   preferred_date: string;
   estimated_price: number | null;
+  actual_price: number | null;
   status: string;
   paid: boolean;
   services: { name: string } | null;
@@ -78,6 +79,19 @@ function getDateBounds(range: DateRange): { from: string | null; to: string | nu
   return { from: null, to: null };
 }
 
+function downloadCSV(filename: string, rows: string[][]) {
+  const csv = rows
+    .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Summary Cards ─────────────────────────────────────────────────────────────
 
 function SummaryCards({
@@ -122,82 +136,161 @@ function SummaryCards({
 
 function RevenueSection({
   bookings,
+  range,
   onRefresh,
 }: {
   bookings: BookingRevenue[];
+  range: DateRange;
   onRefresh: () => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  function effective(b: BookingRevenue) {
+    return b.actual_price ?? b.estimated_price ?? 0;
+  }
+
   async function togglePaid(id: string, paid: boolean) {
     const supabase = createClient();
     await supabase.from("bookings").update({ paid }).eq("id", id);
     onRefresh();
   }
 
-  if (bookings.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-gray-200 py-20 text-center">
-        <p className="text-sm text-gray-400">No revenue records for this period.</p>
-      </div>
-    );
+  function startEdit(b: BookingRevenue) {
+    setEditingId(b.id);
+    setEditValue(String(b.actual_price ?? b.estimated_price ?? ""));
   }
 
-  const collected = bookings.filter((b) => b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
-  const pending = bookings.filter((b) => !b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  async function saveActualPrice(id: string) {
+    const val = parseFloat(editValue);
+    const supabase = createClient();
+    await supabase
+      .from("bookings")
+      .update({ actual_price: isNaN(val) ? null : val })
+      .eq("id", id);
+    setEditingId(null);
+    onRefresh();
+  }
+
+  function exportCSV() {
+    const rows = [
+      ["Date", "Customer", "Service", "Estimated ($)", "Actual ($)", "Job Status", "Payment"],
+      ...bookings.map((b) => [
+        b.preferred_date,
+        b.customer_name,
+        b.services?.name ?? "",
+        String(b.estimated_price ?? ""),
+        String(b.actual_price ?? ""),
+        b.status,
+        b.paid ? "Paid" : "Unpaid",
+      ]),
+    ];
+    downloadCSV(`oddjob-revenue-${range}.csv`, rows);
+  }
+
+  const collected = bookings.filter((b) => b.paid).reduce((sum, b) => sum + effective(b), 0);
+  const pending = bookings.filter((b) => !b.paid).reduce((sum, b) => sum + effective(b), 0);
 
   return (
     <div>
-      <p className="mb-3 text-sm text-gray-400">
-        {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {fmt(collected)} collected · {fmt(pending)} pending
-      </p>
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-100 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              {["Date", "Customer", "Service", "Amount", "Job Status", "Payment"].map((col) => (
-                <th
-                  key={col}
-                  className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {bookings.map((b) => (
-              <tr key={b.id} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-3 text-gray-500">{fmtDate(b.preferred_date)}</td>
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{b.customer_name}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-600">{b.services?.name ?? "—"}</td>
-                <td className="whitespace-nowrap px-4 py-3 font-semibold text-green-600">
-                  {fmt(b.estimated_price ?? 0)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <span
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
-                      STATUS_STYLES[b.status] ?? "border-gray-200 bg-gray-50 text-gray-500"
-                    }`}
-                  >
-                    {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <button
-                    onClick={() => togglePaid(b.id, !b.paid)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                      b.paid
-                        ? "bg-green-100 text-green-700 hover:bg-green-200"
-                        : "bg-orange-100 text-orange-600 hover:bg-orange-200"
-                    }`}
-                  >
-                    {b.paid ? "Paid" : "Unpaid"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-400">
+          {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {fmt(collected)} collected · {fmt(pending)} pending
+        </p>
+        {bookings.length > 0 && (
+          <button
+            onClick={exportCSV}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Export CSV
+          </button>
+        )}
       </div>
+
+      {bookings.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-200 py-20 text-center">
+          <p className="text-sm text-gray-400">No revenue records for this period.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-100 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {["Date", "Customer", "Service", "Amount", "Job Status", "Payment"].map((col) => (
+                  <th
+                    key={col}
+                    className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {bookings.map((b) => (
+                <tr key={b.id} className="hover:bg-gray-50">
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-500">{fmtDate(b.preferred_date)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{b.customer_name}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{b.services?.name ?? "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    {editingId === b.id ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="w-24 rounded border border-indigo-300 px-2 py-1 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => saveActualPrice(b.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveActualPrice(b.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => startEdit(b)}
+                        className="group flex items-center gap-1.5 text-left"
+                        title="Click to enter actual amount"
+                      >
+                        <span className={`font-semibold ${b.actual_price != null ? "text-green-600" : "text-green-400"}`}>
+                          {fmt(effective(b))}
+                        </span>
+                        {b.actual_price == null && (
+                          <span className="text-xs text-gray-400">est.</span>
+                        )}
+                        <span className="invisible text-xs text-gray-400 group-hover:visible">✎</span>
+                      </button>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                        STATUS_STYLES[b.status] ?? "border-gray-200 bg-gray-50 text-gray-500"
+                      }`}
+                    >
+                      {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <button
+                      onClick={() => togglePaid(b.id, !b.paid)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                        b.paid
+                          ? "bg-green-100 text-green-700 hover:bg-green-200"
+                          : "bg-orange-100 text-orange-600 hover:bg-orange-200"
+                      }`}
+                    >
+                      {b.paid ? "Paid" : "Unpaid"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -206,9 +299,11 @@ function RevenueSection({
 
 function ExpensesSection({
   expenses,
+  range,
   onRefresh,
 }: {
   expenses: Expense[];
+  range: DateRange;
   onRefresh: () => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -246,18 +341,34 @@ function ExpensesSection({
     onRefresh();
   }
 
+  function exportCSV() {
+    const rows = [
+      ["Date", "Category", "Description", "Amount ($)"],
+      ...expenses.map((e) => [e.date, e.category, e.description, String(e.amount)]),
+    ];
+    downloadCSV(`oddjob-expenses-${range}.csv`, rows);
+  }
+
   return (
     <div className="space-y-4">
-      {!adding && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-4">
+        {expenses.length > 0 && (
+          <button
+            onClick={exportCSV}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Export CSV
+          </button>
+        )}
+        {!adding && (
           <button
             onClick={() => setAdding(true)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+            className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
           >
             + Add Expense
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {adding && (
         <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-6">
@@ -378,9 +489,11 @@ function ExpensesSection({
 
 function WorkerPaySection({
   payments,
+  range,
   onRefresh,
 }: {
   payments: WorkerPayment[];
+  range: DateRange;
   onRefresh: () => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -430,29 +543,48 @@ function WorkerPaySection({
     onRefresh();
   }
 
+  function exportCSV() {
+    const rows = [
+      ["Date", "Worker", "Hours", "Rate ($/hr)", "Total ($)", "Status"],
+      ...payments.map((p) => [
+        p.date,
+        p.worker_name,
+        String(p.hours_worked),
+        String(p.hourly_rate),
+        String(p.hours_worked * p.hourly_rate),
+        p.paid ? "Paid" : "Unpaid",
+      ]),
+    ];
+    downloadCSV(`oddjob-worker-pay-${range}.csv`, rows);
+  }
+
   const unpaidTotal = payments
     .filter((p) => !p.paid)
     .reduce((sum, p) => sum + p.hours_worked * p.hourly_rate, 0);
 
   return (
     <div className="space-y-4">
-      {!adding && (
-        <div className="flex items-center justify-between">
-          {unpaidTotal > 0 && (
-            <p className="text-sm font-semibold text-orange-600">
-              {fmt(unpaidTotal)} unpaid
-            </p>
-          )}
-          <div className="ml-auto">
-            <button
-              onClick={() => setAdding(true)}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
-            >
-              + Log Worker Pay
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-4">
+        {unpaidTotal > 0 && (
+          <p className="text-sm font-semibold text-orange-600">{fmt(unpaidTotal)} unpaid</p>
+        )}
+        {payments.length > 0 && (
+          <button
+            onClick={exportCSV}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Export CSV
+          </button>
+        )}
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+          >
+            + Log Worker Pay
+          </button>
+        )}
+      </div>
 
       {adding && (
         <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-6">
@@ -607,7 +739,7 @@ export default function AccountingPage() {
 
     let bookingsQuery = supabase
       .from("bookings")
-      .select("id, customer_name, preferred_date, estimated_price, status, paid, services(name)")
+      .select("id, customer_name, preferred_date, estimated_price, actual_price, status, paid, services(name)")
       .neq("status", "cancelled")
       .not("estimated_price", "is", null)
       .order("preferred_date", { ascending: false });
@@ -644,8 +776,12 @@ export default function AccountingPage() {
     router.push("/admin/login");
   }
 
-  const collected = bookings.filter((b) => b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
-  const pending = bookings.filter((b) => !b.paid).reduce((sum, b) => sum + (b.estimated_price ?? 0), 0);
+  const collected = bookings
+    .filter((b) => b.paid)
+    .reduce((sum, b) => sum + (b.actual_price ?? b.estimated_price ?? 0), 0);
+  const pending = bookings
+    .filter((b) => !b.paid)
+    .reduce((sum, b) => sum + (b.actual_price ?? b.estimated_price ?? 0), 0);
   const expensesTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
   const workerPayTotal = payments.reduce((sum, p) => sum + p.hours_worked * p.hourly_rate, 0);
 
@@ -669,7 +805,7 @@ export default function AccountingPage() {
         </div>
 
         {/* Date range filter */}
-        <div className="mb-6 w-fit rounded-xl bg-gray-100 p-1 flex gap-1">
+        <div className="mb-6 flex w-fit gap-1 rounded-xl bg-gray-100 p-1">
           {(Object.keys(RANGE_LABELS) as DateRange[]).map((r) => (
             <button
               key={r}
@@ -697,7 +833,7 @@ export default function AccountingPage() {
         </div>
 
         {/* Section tabs */}
-        <div className="mb-6 w-fit rounded-xl bg-gray-100 p-1 flex gap-1">
+        <div className="mb-6 flex w-fit gap-1 rounded-xl bg-gray-100 p-1">
           {(["revenue", "expenses", "worker_pay"] as const).map((tab) => (
             <button
               key={tab}
@@ -715,9 +851,15 @@ export default function AccountingPage() {
           <div className="h-48 animate-pulse rounded-2xl bg-gray-100" />
         ) : (
           <>
-            {activeTab === "revenue" && <RevenueSection bookings={bookings} onRefresh={fetchAll} />}
-            {activeTab === "expenses" && <ExpensesSection expenses={expenses} onRefresh={fetchAll} />}
-            {activeTab === "worker_pay" && <WorkerPaySection payments={payments} onRefresh={fetchAll} />}
+            {activeTab === "revenue" && (
+              <RevenueSection bookings={bookings} range={range} onRefresh={fetchAll} />
+            )}
+            {activeTab === "expenses" && (
+              <ExpensesSection expenses={expenses} range={range} onRefresh={fetchAll} />
+            )}
+            {activeTab === "worker_pay" && (
+              <WorkerPaySection payments={payments} range={range} onRefresh={fetchAll} />
+            )}
           </>
         )}
       </div>
