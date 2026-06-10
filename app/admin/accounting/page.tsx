@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type DateRange = "this_month" | "last_month" | "all_time";
+type DateRange = "this_month" | "last_month" | "all_time" | "custom";
 
 type BookingRevenue = {
   id: string;
@@ -64,7 +64,11 @@ function fmtDate(dateStr: string) {
   });
 }
 
-function getDateBounds(range: DateRange): { from: string | null; to: string | null } {
+function getDateBounds(
+  range: DateRange,
+  customFrom?: string,
+  customTo?: string,
+): { from: string | null; to: string | null } {
   const now = new Date();
   if (range === "this_month") {
     const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
@@ -75,6 +79,9 @@ function getDateBounds(range: DateRange): { from: string | null; to: string | nu
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
     const to = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
     return { from, to };
+  }
+  if (range === "custom") {
+    return { from: customFrom || null, to: customTo || null };
   }
   return { from: null, to: null };
 }
@@ -720,11 +727,14 @@ const RANGE_LABELS: Record<DateRange, string> = {
   this_month: "This Month",
   last_month: "Last Month",
   all_time: "All Time",
+  custom: "Custom",
 };
 
 export default function AccountingPage() {
   const router = useRouter();
   const [range, setRange] = useState<DateRange>("this_month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [activeTab, setActiveTab] = useState<"revenue" | "expenses" | "worker_pay">("revenue");
 
   const [bookings, setBookings] = useState<BookingRevenue[]>([]);
@@ -733,9 +743,10 @@ export default function AccountingPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    if (range === "custom" && (!customFrom || !customTo)) return;
     setLoading(true);
     const supabase = createClient();
-    const { from, to } = getDateBounds(range);
+    const { from, to } = getDateBounds(range, customFrom, customTo);
 
     let bookingsQuery = supabase
       .from("bookings")
@@ -764,7 +775,7 @@ export default function AccountingPage() {
     setExpenses((expensesRes.data as Expense[]) ?? []);
     setPayments((paymentsRes.data as WorkerPayment[]) ?? []);
     setLoading(false);
-  }, [range]);
+  }, [range, customFrom, customTo]);
 
   useEffect(() => {
     fetchAll();
@@ -805,18 +816,38 @@ export default function AccountingPage() {
         </div>
 
         {/* Date range filter */}
-        <div className="mb-6 flex w-fit gap-1 rounded-xl bg-gray-100 p-1">
-          {(Object.keys(RANGE_LABELS) as DateRange[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {RANGE_LABELS[r]}
-            </button>
-          ))}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+            {(Object.keys(RANGE_LABELS) as DateRange[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+          {range === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              />
+              <span className="text-sm text-gray-400">to</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+          )}
         </div>
 
         {/* Summary cards */}
