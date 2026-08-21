@@ -211,6 +211,14 @@ function ReplyModal({
           </div>
         ) : (
           <>
+            {booking.notes && (
+              <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Customer&apos;s Additional Notes
+                </p>
+                <p className="whitespace-pre-wrap text-sm text-gray-600">{booking.notes}</p>
+              </div>
+            )}
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
