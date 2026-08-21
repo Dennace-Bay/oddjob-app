@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal?.currentLevel !== "aal2") {
+    if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
