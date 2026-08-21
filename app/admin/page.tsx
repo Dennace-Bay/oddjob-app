@@ -67,7 +67,7 @@ const BLANK_DRAFT: ServiceDraft = {
 
 const BOOKING_COLUMNS = [
   "Date Submitted", "Customer Name", "Phone", "Email",
-  "Service", "Community", "Preferred Date", "Preferred Time", "Photos", "Status",
+  "Service", "Community", "Preferred Date", "Preferred Time", "Photos", "Status", "",
 ];
 
 // ─── Photo Modal ──────────────────────────────────────────────────────────────
@@ -134,6 +134,116 @@ function PhotoModal({ paths, onClose }: { paths: string[]; onClose: () => void }
   );
 }
 
+// ─── Reply Modal ──────────────────────────────────────────────────────────────
+
+function ReplyModal({
+  booking,
+  onClose,
+}: {
+  booking: Booking;
+  onClose: () => void;
+}) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  async function handleSend() {
+    if (!message.trim()) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch("/api/admin/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: booking.email,
+          customer_name: booking.customer_name,
+          service_name: booking.services?.name ?? "",
+          message,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSendError(data.error || "Failed to send message. Please try again.");
+        setSending(false);
+        return;
+      }
+      setSent(true);
+    } catch {
+      setSendError("Failed to send message. Please try again.");
+    }
+    setSending(false);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Reply to {booking.customer_name}</h3>
+            <p className="text-xs text-gray-400">{booking.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        {sent ? (
+          <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-6 text-center">
+            <p className="text-sm font-medium text-green-700">Message sent to {booking.customer_name}.</p>
+            <button
+              onClick={onClose}
+              className="mt-4 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-700"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+              maxLength={4000}
+              placeholder="Write a message to the customer about this booking…"
+              className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-indigo-400"
+            />
+            {sendError && (
+              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{sendError}</p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleSend}
+                disabled={sending || !message.trim()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sending ? "Sending…" : "Send Email"}
+              </button>
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Bookings Dashboard ────────────────────────────────────────────────────────
 
 function BookingsDashboard() {
@@ -141,6 +251,7 @@ function BookingsDashboard() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [viewingPhotos, setViewingPhotos] = useState<string[] | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Booking | null>(null);
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
@@ -265,6 +376,14 @@ function BookingsDashboard() {
                     ))}
                   </select>
                 </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <button
+                    onClick={() => setReplyingTo(booking)}
+                    className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-indigo-100 hover:text-indigo-700"
+                  >
+                    ✉️ Reply
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -272,6 +391,9 @@ function BookingsDashboard() {
       </div>
       {viewingPhotos && (
         <PhotoModal paths={viewingPhotos} onClose={() => setViewingPhotos(null)} />
+      )}
+      {replyingTo && (
+        <ReplyModal booking={replyingTo} onClose={() => setReplyingTo(null)} />
       )}
     </>
   );

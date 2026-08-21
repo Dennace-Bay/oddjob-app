@@ -1,11 +1,18 @@
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = "OddJob Crew <hello@oddjobcrews.com>";
 const ADMIN_EMAIL = "theoddjob.crews@gmail.com";
 const PHONE = "(403) 992-2526";
+const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 type BookingDetails = {
   customer_name: string;
@@ -125,7 +132,28 @@ function customerHtml(b: BookingDetails): string {
 </html>`;
 }
 
-function adminHtml(b: BookingDetails): string {
+function photosBlock(urls: string[]): string {
+  if (urls.length === 0) return "";
+  const thumbs = urls
+    .map(
+      (url) => `
+        <td style="padding:0 8px 0 0;">
+          <a href="${url}" target="_blank" rel="noopener noreferrer">
+            <img src="${url}" alt="Booking photo" width="120" height="120"
+                 style="display:block;width:120px;height:120px;border-radius:10px;object-fit:cover;border:1px solid #e5e7eb;" />
+          </a>
+        </td>`
+    )
+    .join("");
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
+      <tr><td style="padding:14px 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;
+                     letter-spacing:0.08em;color:#6b7280;">Photos (${urls.length}) — link expires in 7 days</td></tr>
+      <tr><td><table cellpadding="0" cellspacing="0"><tr>${thumbs}</tr></table></td></tr>
+    </table>`;
+}
+
+function adminHtml(b: BookingDetails, photoUrls: string[]): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8" /></head>
@@ -157,6 +185,7 @@ function adminHtml(b: BookingDetails): string {
               ${summaryRow("Time", b.preferred_time)}
               ${b.notes ? summaryRow("Notes", b.notes) : ""}
             </table>
+            ${photosBlock(photoUrls)}
           </td>
         </tr>
 
@@ -177,8 +206,8 @@ function adminHtml(b: BookingDetails): string {
 
 export async function POST(request: Request) {
   try {
-    const body: BookingDetails = await request.json();
-    const { customer_name, email, phone, service_name, address, preferred_date, preferred_time } = body;
+    const body: BookingDetails & { booking_id?: string } = await request.json();
+    const { customer_name, email, phone, service_name, address, preferred_date, preferred_time, booking_id } = body;
 
     // Server-side validation
     if (!customer_name || !email || !phone || !service_name || !address || !preferred_date || !preferred_time) {
@@ -206,6 +235,30 @@ export async function POST(request: Request) {
       notes: body.notes ? esc(body.notes) : null,
     };
 
+    // Photo paths are looked up server-side from the booking's own DB record —
+    // never trust client-submitted storage paths for another booking.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let photoUrls: string[] = [];
+    if (typeof booking_id === "string" && UUID_RE.test(booking_id)) {
+      const { data: bookingRow, error: bookingError } = await supabaseAdmin
+        .from("bookings")
+        .select("photos")
+        .eq("id", booking_id)
+        .maybeSingle();
+      if (bookingError) {
+        console.error("[send-confirmation] Booking lookup error:", bookingError);
+      } else if (bookingRow?.photos?.length) {
+        const { data, error } = await supabaseAdmin.storage
+          .from("booking-photos")
+          .createSignedUrls(bookingRow.photos, PHOTO_URL_TTL_SECONDS);
+        if (error) {
+          console.error("[send-confirmation] Signed URL error:", error);
+        } else {
+          photoUrls = data.map((d) => d.signedUrl).filter((u): u is string => !!u);
+        }
+      }
+    }
+
     const [customerResult, adminResult] = await Promise.allSettled([
       resend.emails.send({
         from: FROM,
@@ -217,7 +270,7 @@ export async function POST(request: Request) {
         from: FROM,
         to: ADMIN_EMAIL,
         subject: `New Booking: ${safe.service_name} — ${safe.customer_name}`,
-        html: adminHtml(safe),
+        html: adminHtml(safe, photoUrls),
       }),
     ]);
 

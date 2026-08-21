@@ -210,8 +210,8 @@ export default function BookingForm({
     }
 
     // Upload photos — failure does not block the booking
+    const photoPaths: string[] = [];
     if (selectedFiles.length > 0) {
-      const photoPaths: string[] = [];
       for (let i = 0; i < selectedFiles.length; i++) {
         try {
           const blob = await compressImage(selectedFiles[i]);
@@ -242,6 +242,7 @@ export default function BookingForm({
           preferred_date: form.preferred_date,
           preferred_time: form.preferred_time,
           notes: form.notes.trim() || null,
+          booking_id: photoPaths.length > 0 ? bookingId : undefined,
         }),
       });
     } catch {
